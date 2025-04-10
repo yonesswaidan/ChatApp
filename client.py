@@ -4,14 +4,12 @@ from Crypto.Protocol.KDF import scrypt
 from Crypto.Random import get_random_bytes
 import os
 
-# Funktion til at kryptere besked
 def encrypt_message(key, message):
     nonce = get_random_bytes(12)
     cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
     ciphertext, tag = cipher.encrypt_and_digest(message.encode())
     return nonce + tag + ciphertext
 
-# Funktion til at dekryptere besked
 def decrypt_message(key, encrypted_message):
     nonce, tag, ciphertext = encrypted_message[:12], encrypted_message[12:28], encrypted_message[28:]
     cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
@@ -21,7 +19,6 @@ def decrypt_message(key, encrypted_message):
     except ValueError:
         raise ValueError("Invalid decryption or integrity check failed!")
 
-# Client setup
 async def communicate():
     shared_key = scrypt(b"my_shared_secret", b"salt", 32, N=2**14, r=8, p=1)
 
@@ -33,12 +30,10 @@ async def communicate():
         if message.lower() == 'exit':
             break
 
-        # Krypter besked og send til server
         encrypted_message = encrypt_message(shared_key, message)
         writer.write(encrypted_message)
         await writer.drain()
 
-        # Modtag svar fra serveren
         data = await reader.read(1024)
         if data:
             response = decrypt_message(shared_key, data)
@@ -49,5 +44,4 @@ async def communicate():
     print("Closing connection")
     writer.close()
 
-# Start klient
 asyncio.run(communicate())
