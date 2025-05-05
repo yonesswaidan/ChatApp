@@ -37,7 +37,8 @@ Sådan kører du projektet:
 git clone https://github.com/yonesswaidan/ChatApp
 
 
-3. Installer afhængigheder i terminalen 
+3. Installer afhængigheder i terminalen
+   
 pip install -r requirements.txt
 
 
