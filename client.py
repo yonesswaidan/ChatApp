@@ -1,81 +1,67 @@
 import asyncio
 import tkinter as tk
-from tkinter import messagebox
-from Crypto.Cipher import AES
-from Crypto.Protocol.KDF import scrypt
-from Crypto.Random import get_random_bytes
+import threading
+from common import encrypt_message, decrypt_message
 
-passphrase = None  # Gemmes passphrasen
+passphrase = None
+reader, writer = None, None
 
-# Funktion der finde en key ud fra passphrasen
-def get_shared_key(passphrase):
-    salt = b'static_salt'  # Salt bruges for at gøre det "sværere" for black-hat hacker
-    return scrypt(passphrase.encode(), salt, 32, N=2**14, r=8, p=1)
-
-# Funktion til kryption af beskeder
-def encrypt_message(key, message):
-    nonce = get_random_bytes(12)  # Nonce (engangsnummer som nævnt i README.md)(Hjælper med at gøre den unik)
-    cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)  # AES-GCM kryptering
-    ciphertext, tag = cipher.encrypt_and_digest(message.encode())  # Krypter beskeden og få en authen tag
-    return nonce + tag + ciphertext  # Retuner krypteret besked med nonce og tag
-
-# Funktion til at dekryptere beskeder
-def decrypt_message(key, encrypted_message):
-    nonce, tag, ciphertext = encrypted_message[:12], encrypted_message[12:28], encrypted_message[28:]  # funktion omdeller krypteret besked
-    cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)  # AES-GCM til dekryptering
-    return cipher.decrypt_and_verify(ciphertext, tag).decode()  # Dekrypter og tjek om det er autenstisk
-
-# Funktion til at kommunikere med serveren
-async def communicate():
-    global passphrase
-    if passphrase is None:  # Tjek at passphrasen er sat
-        messagebox.showerror("Error", "You must enter a passphrase.")
-        return
-
-    key = get_shared_key(passphrase)  # "Afledder" krypteringsnøgle fra passphrasen
-    reader, writer = await asyncio.open_connection('127.0.0.1', 12345)  # Opretter forbindelse til serveren
-
+async def receive_messages():
+    global reader
     while True:
-        message = input("You: ")  # Brugeren skriver en besked
-        if message.lower() == "exit":  # Hvis brugeren skriver "exit", afslutter kommunikationen
+        try:
+            data = await reader.read(4096)
+            if data:
+                message = decrypt_message(passphrase, data)
+                print("Server:", message)
+            else:
+                break
+        except Exception as e:
+            print("Error:", e)
             break
-        writer.write(encrypt_message(key, message))  # Kryptere beskeden og sender den
-        await writer.drain()  # Vent på at beskeden bliver sendt
 
-        data = await reader.read(1024)  # Læser svar fra serveren
-        if data:
-            print("Server:", decrypt_message(key, data))  # Dekrypter og viser serverens besked
 
-    writer.close()  # Luk forbindelsen til serveren
+async def send_messages():
+    global writer
+    while True:
+        message = input("You: ")
+        if message.lower() == "exit":
+            break
+        encrypted = encrypt_message(passphrase, message)
+        writer.write(encrypted)
+        await writer.drain()
+    writer.close()
 
-# Funktion til at starte kommunikationen, kaldt fra UI
-def start_communicate():
-    global passphrase
-    passphrase = passphrase_entry.get()  # Hent passphrasen fra inputfeltet
 
-    if not passphrase:  # Hvis der ikke er angivet passphrase
-        messagebox.showerror("Error", "Passphrase cannot be empty")
-        return
+async def start_client():
+    global reader, writer
+    reader, writer = await asyncio.open_connection('127.0.0.1', 12345)
+    asyncio.create_task(receive_messages())
+    await send_messages()
 
-    asyncio.run(communicate())  # Starter kommunikationen async
 
-# Funktion til at opsætte og starte UI
-def start_client_ui():
-    global passphrase_entry
+def main():
+    def on_connect():
+        global passphrase
+        user_input = entry.get()
+        if not user_input:
+            error_label.config(text="Please enter a passphrase.")
+        else:
+            passphrase = user_input
+            error_label.config(text="Connected. Write in terminal.")
+            connect_button.config(state=tk.DISABLED)
+            threading.Thread(target=lambda: asyncio.run(start_client())).start()
 
-    root = tk.Tk()  # Opret et Tkinter vindue
-    root.title("Client")  # Sætter vinduets titel
+    root = tk.Tk()
+    root.title("Client")
+    tk.Label(root, text="Enter passphrase:").pack(pady=10)
+    entry = tk.Entry(root, show="*")
+    entry.pack(pady=5)
+    connect_button = tk.Button(root, text="Connect", command=on_connect)
+    connect_button.pack(pady=10)
+    error_label = tk.Label(root, text="", fg="red")
+    error_label.pack()
+    root.mainloop()
 
-    label = tk.Label(root, text="Enter passphrase:")  # Label for passphrase input
-    label.pack(pady=10) 
-
-    passphrase_entry = tk.Entry(root, show="*")  # Skjuler tegnene
-    passphrase_entry.pack(pady=10)  
-
-    connect_button = tk.Button(root, text="Connect", command=start_communicate)  # Knapp til at starte kommunikationen
-    connect_button.pack(pady=20) 
-
-    root.mainloop()  
-
-if __name__ == "__main__":  
-    start_client_ui()  
+if __name__ == "__main__":
+    main()
