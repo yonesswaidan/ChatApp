@@ -42,12 +42,17 @@ pip install -r requirements.txt
 
 
 Kørsel:
+
 Start serveren
+
 python server.py
+
 Indtast en hemmelig passphrase, som du deler med Klienten.
 
 Start klienten
+
 python client.py
+
 Indtast den samme passphrase som du har brugt på serveren.
 
 Når forbindelsen er etableret, kan du sende beskeder i terminalen.
