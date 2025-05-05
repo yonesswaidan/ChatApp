@@ -18,14 +18,10 @@ async def handle_client(reader, writer):
             if not data:
                 break
             try:
-                message = decrypt_message(passphrase, data)
-                print(f"{addr} says: {message}")
-
-                response = f"{addr} said: {message}"
+                print("Broadcasting message")
                 for client in clients:
                     if client != writer:
-                        encrypted = encrypt_message(passphrase, response)
-                        client.write(encrypted)
+                        client.write(data)
                         await client.drain()
             except Exception as e:
                 print(f"Failed to decrypt from {addr}: {e}")
@@ -67,4 +63,5 @@ def main():
     root.mainloop()
 
 if __name__ == "__main__":
-    main()
+    passphrase = "test"
+    asyncio.run(start_server())

@@ -1,44 +1,44 @@
 import asyncio
 import tkinter as tk
 import threading
+import socket
+import time
 from common import encrypt_message, decrypt_message
 
 passphrase = None
-reader, writer = None, None
 
-async def receive_messages():
-    global reader
+def receive_messages(clientSocket):
     while True:
         try:
-            data = await reader.read(4096)
+            data = clientSocket.recv(4096)
             if data:
                 message = decrypt_message(passphrase, data)
                 print("Server:", message)
             else:
                 break
+            time.sleep(1)
         except Exception as e:
             print("Error:", e)
             break
 
 
-async def send_messages():
-    global writer
+def send_messages(clientSocket):
     while True:
         message = input("You: ")
         if message.lower() == "exit":
             break
         encrypted = encrypt_message(passphrase, message)
-        writer.write(encrypted)
-        await writer.drain()
-    writer.close()
+        clientSocket.sendall(encrypted)
+        time.sleep(1)
 
 
 async def start_client():
-    global reader, writer
-    reader, writer = await asyncio.open_connection('127.0.0.1', 12345)
-    asyncio.create_task(receive_messages())
-    await send_messages()
-
+    clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    clientSocket.connect(('127.0.0.1', 12345))
+    in_thread = threading.Thread(target=receive_messages, args=(clientSocket,))
+    out_thread = threading.Thread(target=send_messages, args=(clientSocket,))
+    in_thread.start()
+    out_thread.start()
 
 def main():
     def on_connect():
@@ -64,4 +64,5 @@ def main():
     root.mainloop()
 
 if __name__ == "__main__":
-    main()
+    passphrase = "test"
+    asyncio.run(start_client())
